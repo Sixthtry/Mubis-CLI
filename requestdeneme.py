@@ -5,11 +5,17 @@ import requests
 import codecs
 import dateutil.parser as dparse
 import json
+from bs4 import BeautifulSoup
 from datetime import datetime
 from mubis import tarih_saturday as satu
 from mubis import tarih_monday as mond
 
 user_sessions = 'http://mubistip.maltepe.edu.tr/user_sessions'
+
+def html_parse(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    s = soup.find("td").find("input")["title"].split("/")[3]
+    print(s)
 
 def usr_inf():
     okul_no = input("Okul Numarası: ")
@@ -58,7 +64,7 @@ def outputing(gun_programi):
         ders = entry['title']
         start = dparse.parse(entry['start'].split("+")[0])
         end =dparse.parse(entry['end'].split("+")[0])
-        print("{0} - {1}\n\t{2}".format(start, end, ders))
+        print("{0} - {1}\n\t{2}\n".format(start, end, ders))
 
 
 with requests.Session() as s:
@@ -70,6 +76,7 @@ with requests.Session() as s:
         outputing(listing(jfile))
     else:
         print("Oturum açıldı.")
+        html_parse(p.text)
         _url = 'http://mubistip.maltepe.edu.tr/ajanda/ogrenci_event_list.json?ogrenci=16868'
         start = mond()
         end = satu()
