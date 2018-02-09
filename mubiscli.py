@@ -1,18 +1,19 @@
 #!/bin/python3.6
 
 # to-do
-# Saate göre sıralama!
+# Error checking
+# --> if there is no internet and no file
 
-import getpass
+
+import getpass                      # Parola görünmez oluyor
 import requests
-import codecs
+import codecs                       # encoding="utf-8" desteği
 import dateutil.parser as dparse
+import time
 import json
 import calendar
 import argparse
-import sys
-import time
-import os
+import os                           # $HOME path'i için
 from bs4 import BeautifulSoup
 from datetime import datetime
 
@@ -24,8 +25,11 @@ nexti = parser.add_argument('-n', '--next', action='store_true',
         help='Show the next week\'s program.', dest="nexti")
 prev = parser.add_argument('-p', '--previous', action='store_true', 
         help='Show previous week\'s program.', dest="prev")
+cach = parser.add_argument('-c', '--cache', action='store_true',
+        help='Show the cached calendar.', dest='cach')
 args = parser.parse_args()
 
+# Argümana göre dosya adı belirlenmesi
 if args.nexti:
     fname = ".takvim_next.json"
 elif args.prev:
@@ -34,6 +38,7 @@ else:
     fname = ".takvim.json"
 fname = os.path.join(os.path.expandvars("$HOME"),fname)
 
+# Pazartesi ve Cumartesi 00:00 zamanı
 def mond():
     gunFarki_monday = (datetime
             .isoweekday(datetime.now())-1)
@@ -58,11 +63,14 @@ def satu():
     sat__ = int(time.mktime(sat_))
     return sat__
 
+# POST içeriğindeki öğrenci numarası
 def html_parse(html):
     soup = BeautifulSoup(html, 'html.parser')
     ogrenci_no = soup.find("td").find("input")["title"].split("/")[3]
     return ogrenci_no
 
+
+# MUBIS'e giriş bilgileri
 def usr_inf():
     okul_no = input("Okul Numarası: ")
     passw = getpass.getpass()
@@ -75,6 +83,7 @@ def usr_inf():
             }
     return payload
 
+# Takvimi almak için gönderilen POST paketini oluşturma
 def url_prep():
     st_num = html_parse(p.text)
     _url = 'http://mubistip.maltepe.edu.tr/ajanda/ogrenci_event_list.json?ogrenci='
@@ -90,21 +99,20 @@ def url_prep():
     url = '{0}{1}&start={2}&end={3}'.format(_url ,st_num, start, end)
     return url 
 
+# Takvimi dosyaya yazma
 def wrtefile(buff):
     jfilew = open(fname, "w")
     jfilew.write(buff)
     jfilew.close()
     return 0
 
+# Takvim sıralamasının düzenlenmesi
 def listing(jfile):
-    jbuff = json.load(jfile)
+    jbuff = json.load(jfile) #object_pairs_hook=collections.OrderedDict)
     
-    gun_programi = []
-    mon=[]
-    tue=[]
-    wed=[]
-    thu=[]
-    fri=[]
+    # Gün bazlı ayırma için listeler
+    gun_programi, mon, tue, wed, thu, fri= ([] for q in range(6))
+    
     for entry in jbuff:
         _ders_gunu = datetime.isoweekday(dparse.
                parse(entry['start'].split("T")[0].split("-")[2]))
@@ -118,49 +126,65 @@ def listing(jfile):
             thu.append(entry)
         else:
             fri.append(entry)
-
+    
     gun_programi.append(list(mon))
     gun_programi.append(list(tue))
     gun_programi.append(list(wed))
     gun_programi.append(list(thu))
     gun_programi.append(list(fri))
-    
+   
+
+    # I did not understand anything in here but it works...
+    for liste in gun_programi:
+        for mem in liste:
+            liste.sort(key=lambda mem:mem['start'])
+
     return gun_programi
 
+# Takvimi output ederkenki düzenin belirlenmesi
 def outputing(gun_programi):
-    for dumpy in gun_programi:
-        for entry in dumpy:
+    for gun in gun_programi:
+        _date=dparse.parse(gun[0]['start'].split("T")[0])
+        _date_int = calendar.day_name[_date.date().weekday()]
+
+        print(_date,"-",_date_int)
+        for entry in gun:
             ders = entry['title'] 
-        # Parse, JSON'daki tarihi düzgün göstermeye yarıyor.
-            _date=dparse.parse(entry['start'].split("T")[0]).date()
-        # Split(T)[0], Zaman bilgisindeki tarih kısmını alıyor
-            _end_h=dparse.parse(entry['end'].split("+")[0]).time().strftime("%H:%M")       
-        # date() eklendi çünkü parse datetime objesi oluşturuyor ve saatleri 0 yapıyor.
+            _end_h=dparse.parse(entry['end']
+                    .split("+")[0]).time().strftime("%H:%M")       
             _start_h = dparse.parse(entry['start']
                    .split("+")[0]).time().strftime("%H:%M")
-        # Split(+)[0], Zaman ve tarih bilgisini direk alıyor.
-            _date_int = calendar.day_name[_date.weekday()]
-            print("{0}-{1}\n{2}-{3}:{4}".format(_date,_date_int,_start_h,_end_h,ders))
-        print('\n')
-try:
-    with requests.Session() as s:
-        payload = usr_inf()
-        p = s.post(user_sessions, data=payload)
-        if p.url == user_sessions:
-            print("MUBIS çalışmıyor. Kaydedilmiş program açılıyor.\n")
-            jfile = codecs.open(fname, mode="r", encoding="utf-8")
-            outputing(listing(jfile))
-        else:
-            print("Oturum açıldı.")
-            url = url_prep()
-            _json_buff = s.get(url)
-            wrtefile(_json_buff.text)
-            print("Yedek alındı.\n")
-            jfile = codecs.open(fname, mode="r", encoding="utf-8")
-            outputing(listing(jfile))
-
-except requests.exceptions.RequestException as exc:
-    print("Bağlantı problemi:", exc)
+            print("{}-{}:{}".format(_start_h, _end_h, ders))
+        print("\n")
+    print("\n")
+if not args.cach:
+    try:
+        with requests.Session() as s:
+            payload = usr_inf()
+            p = s.post(user_sessions, data=payload)
+            if p.url == user_sessions:
+                print("MUBIS çalışmıyor. Kaydedilmiş program açılıyor.\n")
+                jfile = codecs.open(fname, mode="r", encoding="utf-8")
+                outputing(listing(jfile))
+                jfile.close()
+            else:
+                print("Oturum açıldı.")
+                url = url_prep()
+                _json_buff = s.get(url)
+                wrtefile(_json_buff.text)
+                print("Yedek alındı.\n")
+                jfile = codecs.open(fname, mode="r", encoding="utf-8")
+                outputing(listing(jfile))
+                jfile.close()
+    except requests.exceptions.RequestException as exc:
+        print("Bağlantı problemi:", exc)
+        print("Kaydedilmiş ders programı açılıyor.\n")
+        jfile = codecs.open(fname, mode="r", encoding="utf-8")
+        outputing(listing(jfile))
+        jfile.close()
+else:
     print("Kaydedilmiş ders programı açılıyor.\n")
     jfile = codecs.open(fname, mode="r", encoding="utf-8")
     outputing(listing(jfile))
+    jfile.close()
+
