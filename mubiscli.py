@@ -127,11 +127,16 @@ def listing(jfile):
         else:
             fri.append(entry)
     
-    gun_programi.append(list(mon))
-    gun_programi.append(list(tue))
-    gun_programi.append(list(wed))
-    gun_programi.append(list(thu))
-    gun_programi.append(list(fri))
+    if mon:
+        gun_programi.append(list(mon))
+    if tue:
+        gun_programi.append(list(tue))
+    if wed:
+        gun_programi.append(list(wed))
+    if thu:
+        gun_programi.append(list(thu))
+    if fri:
+        gun_programi.append(list(fri))
    
 
     # I did not understand anything in here but it works...
@@ -144,9 +149,9 @@ def listing(jfile):
 # Takvimi output ederkenki düzenin belirlenmesi
 def outputing(gun_programi):
     for gun in gun_programi:
-        _date=dparse.parse(gun[0]['start'].split("T")[0])
-        _date_int = calendar.day_name[_date.date().weekday()]
-
+        _date=dparse.parse(gun[0]['start'].split("T")[0]).date()
+        _date_int = calendar.day_name[_date.weekday()]
+        print("---------------------------")
         print(_date,"-",_date_int)
         for entry in gun:
             ders = entry['title'] 
@@ -155,8 +160,8 @@ def outputing(gun_programi):
             _start_h = dparse.parse(entry['start']
                    .split("+")[0]).time().strftime("%H:%M")
             print("{}-{}:{}".format(_start_h, _end_h, ders))
+        print("---------------------------")
         print("\n")
-    print("\n")
 if not args.cach:
     try:
         with requests.Session() as s:
